@@ -1,0 +1,22 @@
+{
+  "name": "js-fundamentals-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "canvas": "^2.6.1",
+    "datauri": "^2.0.0",
+    "express": "^4.16.3",
+    "jsdom": "^16.2.0",
+    "mysql": "^2.18.1",
+    "pg": "^8.0.3",
+    "socket.io": "^2.1.1"
+  }
+}

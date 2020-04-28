@@ -1,0 +1,13 @@
+html, body, canvas {
+	margin: 0;
+	padding: 0;
+} 
+canvas {
+	border: 2px solid white;
+	-moz-box-shadow: 0 0 10px 10px #625C5C;
+	-webkit-box-shadow: 0 0 10px 10px #625C5C;
+	box-shadow: 0 0 10px 10px #625C5C;
+}
+html, body {
+	background-color: #737571;
+}
