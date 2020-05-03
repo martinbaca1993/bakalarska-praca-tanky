@@ -60,7 +60,7 @@ function create() {
   this.physics.lifecoins.create(100, 100, 'lifecoin');  
   this.physics.lifecoins.create(100, 500, 'lifecoin');  
   this.physics.lifecoins.create(700, 100, 'lifecoin');  
-  this.physics.lifecoins.create(700, 500, 'lifecoin'); 
+  this.physics.lifecoins.create(700, 500, 'lifecoin');
 
   //AK SA NIEKTO PRIPOJÍ NA SERVER
   io.on('connection', onConnect);
@@ -71,10 +71,10 @@ function update() {}
 
 //FUNKCIA, KTORÁ SA ZAVOLÁ PO PRIPOJENÍ HRÁČA NA SERVER
 function onConnect(socket) {
+  var myRoom;
   console.log('-------------------------------------------------');
   console.log('USER(socket: ' + socket.id + ') connected.');
   console.log('POCET HRACOV ONLINE: ' + io.engine.clientsCount);
-
 
   //AK HRÁČ ZAČAL VYHĽADÁVAŤ HRU
   socket.on('searchingForGame', function () {
@@ -82,6 +82,7 @@ function onConnect(socket) {
     console.log('USER(socket: ' + socket.id + ') vyhľadáva hru č.'+ numberOfRoom);
 
     //VSTUP SOCKETU HRÁČA DO MIESTNOSTI - V KAŽDEJ MIESTNOSTI BUDÚ DVAJA HRÁČI
+    myRoom = numberOfRoom;
     socket.join(numberOfRoom);
 
     if (Object.keys(waitingPlayers).length == 0) {
@@ -216,20 +217,29 @@ function onConnect(socket) {
     playerRoomNumber = playerRoomNumber[0];
     
     socket.leave(playerRoomNumber);
-    playingPlayers[socket.id].destroy();
+    delete playingPlayers[socket.id];
   });
 
   //AK SA HRÁČ ODPOJIL Z HRY, VYMAŽEME JEHO OBJEKT NA SERVERY
   socket.on('disconnect', function () {
+    //OŠETRENIE AK: HRAL+ODPOJIL SA/VYHĽADÁVAL HRU A ODPOJIL SA
+    if(typeof playingPlayers[socket.id] !== 'undefined') {
+      Object.keys(io.sockets.adapter.rooms[myRoom].sockets).forEach(function (socketId) {
+        playersSocket = socketId;
+      });
+      io.in(myRoom).emit('enemyHitByBullet', { socketOfShooter: playersSocket, enemyLife: 0 });
+      delete playingPlayers[socket.id];
+    } else if (typeof waitingPlayers !== 'undefined'){
+      waitingPlayers = {};
+    }
+
     io.emit('disconnect', socket.id);
     
     console.log('-------------------------------------------------');
     console.log('User ' + socket.id + ' disconnected.');
     console.log('POCET HRACOV ONLINE: ' + io.engine.clientsCount);
 
-    if(typeof playingPlayers[socket.id] !== 'undefined') {
-      playingPlayers[socket.id].destroy();
-    }
+    
   });
 }
 

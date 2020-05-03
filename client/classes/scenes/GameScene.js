@@ -34,32 +34,6 @@ class GameScene extends Phaser.Scene {
             runChildUpdate: true
         });
 
-        //VYTVORENIE PREKÁŽOK
-        this.physics.platforms = this.physics.add.staticGroup();
-        this.physics.platforms.create(350, 300, 'wall');
-        this.physics.platforms.create(450, 300, 'wall');
-        this.physics.platforms.create(150, 200, 'wall-small');
-        this.physics.platforms.create(150, 400, 'wall-small');
-        this.physics.platforms.create(250, 100, 'wall-small');
-        this.physics.platforms.create(250, 500, 'wall-small');
-        this.physics.platforms.create(400, 150, 'wall-small');
-        this.physics.platforms.create(400, 450, 'wall-small');
-        this.physics.platforms.create(550, 100, 'wall-small');
-        this.physics.platforms.create(550, 500, 'wall-small');
-        this.physics.platforms.create(650, 200, 'wall-small');
-        this.physics.platforms.create(650, 400, 'wall-small');
-
-        //VYTVORNEIE LIFECOINOV A SPUSTENIE ANIMÁCIE
-        this.physics.lifecoins = this.physics.add.staticGroup();
-        this.physics.lifecoins.create(250, 200, 'lifecoin');
-        this.physics.lifecoins.create(250, 400, 'lifecoin');
-        this.physics.lifecoins.create(550, 200, 'lifecoin');
-        this.physics.lifecoins.create(550, 400, 'lifecoin');   
-        this.physics.lifecoins.create(100, 100, 'lifecoin');  
-        this.physics.lifecoins.create(100, 500, 'lifecoin');  
-        this.physics.lifecoins.create(700, 100, 'lifecoin');  
-        this.physics.lifecoins.create(700, 500, 'lifecoin');         
-        this.physics.lifecoins.playAnimation('sprite-lifecoin-animation', 0);
         
         //VŠETKY ANIMÁCIE POTREBNÉ V HRE
         this.anims.create({
@@ -86,6 +60,33 @@ class GameScene extends Phaser.Scene {
             frameRate: 20,
             repeat: 0
         });
+        
+        //VYTVORENIE PREKÁŽOK
+        this.physics.platforms = this.physics.add.staticGroup();
+        this.physics.platforms.create(350, 300, 'wall');
+        this.physics.platforms.create(450, 300, 'wall');
+        this.physics.platforms.create(150, 200, 'wall-small');
+        this.physics.platforms.create(150, 400, 'wall-small');
+        this.physics.platforms.create(250, 100, 'wall-small');
+        this.physics.platforms.create(250, 500, 'wall-small');
+        this.physics.platforms.create(400, 150, 'wall-small');
+        this.physics.platforms.create(400, 450, 'wall-small');
+        this.physics.platforms.create(550, 100, 'wall-small');
+        this.physics.platforms.create(550, 500, 'wall-small');
+        this.physics.platforms.create(650, 200, 'wall-small');
+        this.physics.platforms.create(650, 400, 'wall-small');
+
+        //VYTVORNEIE LIFECOINOV A SPUSTENIE ANIMÁCIE
+        this.physics.lifecoins = this.physics.add.staticGroup();
+        this.physics.lifecoins.create(250, 200, 'lifecoin');
+        this.physics.lifecoins.create(250, 400, 'lifecoin');
+        this.physics.lifecoins.create(550, 200, 'lifecoin');
+        this.physics.lifecoins.create(550, 400, 'lifecoin');   
+        this.physics.lifecoins.create(100, 100, 'lifecoin');  
+        this.physics.lifecoins.create(100, 500, 'lifecoin');  
+        this.physics.lifecoins.create(700, 100, 'lifecoin');  
+        this.physics.lifecoins.create(700, 500, 'lifecoin');         
+        this.physics.lifecoins.playAnimation('sprite-lifecoin-animation', 0);
         
 
         this.wasMoving = false;
@@ -192,6 +193,7 @@ class GameScene extends Phaser.Scene {
         
         //AK BOL HRÁČ ZASIAHNUTÝ STRELOU, ZMENÍME TEXT VÝPISU ŽIVOTA A AKTUALIZUJEME HO
         this.socket.on('enemyHitByBullet', function (shootingInfo) {
+            console.log(shootingInfo);
             if (shootingInfo.socketOfShooter == this.id) {
                 thisHelp.physics.enemy.scoreText.setText('ENEMY LIFE: '+shootingInfo.enemyLife);
                 thisHelp.physics.enemy.life = shootingInfo.enemyLife;
@@ -234,10 +236,12 @@ class GameScene extends Phaser.Scene {
 
         //KONTROLA ČI SA NESKONČILA HRA
         if(this.physics.enemy.life == 0) {
+            this.gameMusic.stop();
             this.socket.emit('gameOver');
             this.scene.start('GameOverScene',{ gameStatus: 'WIN' });
         }
         if(this.physics.player.life == 0) {
+            this.gameMusic.stop();
             this.socket.emit('gameOver');
             this.scene.start('GameOverScene',{ gameStatus: 'LOSE' });
         }
