@@ -1,5 +1,6 @@
 const path = require('path');
 const jsdom = require('jsdom');
+const fs = require('fs');
 
 var PORT = process.env.PORT || 5000;
 var express = require('express');
@@ -39,6 +40,7 @@ function setupAuthoritativePhaser() {
       });
     };
     dom.window.io = io;
+    dom.window.fs = fs;
   }).catch((error) => {
     console.log(error.message);
   });

@@ -75,8 +75,29 @@ function onConnect(socket) {
   console.log('-------------------------------------------------');
   console.log('USER(socket: ' + socket.id + ') connected.');
   console.log('POCET HRACOV ONLINE: ' + io.engine.clientsCount);
+  
+  //////////////////////////////////////////////////////////VYTVORENIE HRÁČA(MENU/WIN/LOSE)
+  socket.on('createPlayer', function (data) {
+    var nameAlreadyInUse = false;
+    //KONTROLA ČI EXISTUJE HRÁČ SO ZADANÝM MENOM
+    Object.keys(io.sockets.sockets).forEach(function (socketId) {
+      socketName = io.sockets.connected[socketId].player;
+      if(data.name == socketName){
+        nameAlreadyInUse = true;
+      }
+    });
 
-  //AK HRÁČ ZAČAL VYHĽADÁVAŤ HRU
+    if (nameAlreadyInUse) {
+      socket.emit('nameAlreadyInUse');
+    } else {
+      socket.player = data.name;
+      socket.win = 7;
+      socket.lose = 0;
+      socket.emit('startMenuScene');
+    }
+  });
+
+  ///////////////////////////////////////////////////AK HRÁČ ZAČAL VYHĽADÁVAŤ HRU
   socket.on('searchingForGame', function () {
     console.log('-------------------------------------------------');
     console.log('USER(socket: ' + socket.id + ') vyhľadáva hru č.'+ numberOfRoom);
@@ -94,13 +115,15 @@ function onConnect(socket) {
       var readyPlayersSockets = io.sockets.adapter.rooms[numberOfRoom].sockets;
       Object.keys(readyPlayersSockets).forEach(function (socketId) {
         if (socket.id == socketId) {
-          thisHelp.physics.player1 = new Player(thisHelp, waitingPlayers[socketId].x, waitingPlayers[socketId].y).setCollideWorldBounds(true);
+          thisHelp.physics.player1 = new Player(thisHelp, waitingPlayers[socketId].x, waitingPlayers[socketId].y, socketId, numberOfRoom).setCollideWorldBounds(true);
           thisHelp.physics.player1.angle = waitingPlayers[socketId].angle;
           playingPlayers[socketId] = thisHelp.physics.player1;
+          playingPlayers[socketId].socketId = socketId;
         } else {
-          thisHelp.physics.player2 = new Player(thisHelp, waitingPlayers[socketId].x, waitingPlayers[socketId].y).setCollideWorldBounds(true);
+          thisHelp.physics.player2 = new Player(thisHelp, waitingPlayers[socketId].x, waitingPlayers[socketId].y, socketId, numberOfRoom).setCollideWorldBounds(true);
           thisHelp.physics.player2.angle = waitingPlayers[socketId].angle;
           playingPlayers[socketId]=thisHelp.physics.player2;
+          playingPlayers[socketId].socketId = socketId;
         }
       });
             
@@ -120,7 +143,7 @@ function onConnect(socket) {
     }
   });
 
-  //AK HRÁČ NA STRANE KLIENTA ZRUŠÍ VYHĽADÁVANIE HRY
+  //////////////////////////////////////////////////////////AK HRÁČ NA STRANE KLIENTA ZRUŠÍ VYHĽADÁVANIE HRY
   socket.on('endSearching', function () {
     console.log('-------------------------------------------------');
     console.log('USER(socket: '+ this.id +') ukončil vyhľadávanie hry č. '+ numberOfRoom);
@@ -129,63 +152,35 @@ function onConnect(socket) {
     waitingPlayers = {};
   });
 
-  /* AK HRÁČ ODOSLAL INFORMÁCIU O POHYBE */
-  socket.on('playerInput', function (inputData) {
-    var playerRoomNumber = Object.keys(socket.rooms);
-    playerRoomNumber = playerRoomNumber[0];
-
+  //////////////////////////////////////////////////////////AK HRÁČ ODOSLAL INFORMÁCIU O POHYBE
+  socket.on('playerInputDown', function (inputData) {
     //UROBIME POHYB NA SERVERY
-    if (inputData['up'] || inputData['down'] || inputData['left'] || inputData['right']) {
-      if (inputData['left']) {
-        playingPlayers[socket.id].moveLeft();
-      } else if (inputData['right']) {
-        playingPlayers[socket.id].moveRight();
-      } else {
-        playingPlayers[socket.id].stopRotation();
-      }
-  
-      if (inputData['up']) {
-        playingPlayers[socket.id].moveStraight();
-      } else if (inputData['down']) {
-        playingPlayers[socket.id].moveBack();
-      } else {
-        playingPlayers[socket.id].stopMoving();
-      }
-
-      //ODOŠLEME VYKONANÝ POHYB KLIENTOM(HRÁČOM) V DANEJ HRE NA STRANU KLIENTA
-      var playersSocket = io.sockets.adapter.rooms[playerRoomNumber].sockets;
-      Object.keys(playersSocket).forEach(function (socketId) {
-        if (socketId == socket.id) {
-          io.in(playerRoomNumber).emit('playerMoved', { 
-            x: playingPlayers[socketId].x, 
-            y: playingPlayers[socketId].y, 
-            rotation: playingPlayers[socketId].rotation, 
-            inputKeyboard: {up: inputData['up'], down: inputData['down'], left: inputData['left'], right: inputData['right']}, 
-            socketId: socketId}); 
-        } else {
-          io.in(playerRoomNumber).emit('playerMoved', {
-            x: playingPlayers[socketId].x, 
-            y: playingPlayers[socketId].y, 
-            rotation: playingPlayers[socketId].rotation, 
-            inputKeyboard: {up: false, down: false, left: false, right: false}, 
-            socketId: socketId});
-        }
-      });
-    } else {
+      if (inputData['left']) playingPlayers[socket.id].moveLeft(); 
+      if (inputData['right']) playingPlayers[socket.id].moveRight(); 
+      if (inputData['up']) playingPlayers[socket.id].moveStraight(); 
+      if (inputData['down']) playingPlayers[socket.id].moveBack(); 
       //ZASTAVÍME POHYB A ROTÁCIU HRÁČA NA SERVERY
-      playingPlayers[socket.id].stopRotation();
+      /*playingPlayers[socket.id].stopRotation();
       playingPlayers[socket.id].stopMoving();
-
       //ODOŠLEME ZASTAVENIE POHYBU/ROTÁCIE HRÁčA, KVOLI ZASTAVENIU ANIMÁCIE
-      io.in(playerRoomNumber).emit('playerStopped', {socketId: socket.id});
+      io.in(playerRoomNumber).emit('playerStopped', {socketId: socket.id});*/
+  });
+
+   //////////////////////////////////////////////////////////AK HRÁČ ODOSLAL INFORMÁCIU O POHYBE
+   socket.on('playerInputUp', function (inputData) {
+    if (inputData['up'] || inputData['down']){
+      playingPlayers[socket.id].stopMoving();
+      io.in(myRoom).emit('playerStopped', {socketId: socket.id});
+    } 
+    if(inputData['left'] || inputData['right']) {
+      playingPlayers[socket.id].stopRotation();
+      io.in(myRoom).emit('playerStopped', {socketId: socket.id});
     }
   });
 
-  //AK HRÁČ NA SERVERY STLAČIL KLÁVESU PRE STREĽBU
+  ////////////////////////////////////////////////////////////////AK HRÁČ NA SERVERY STLAČIL KLÁVESU PRE STREĽBU
   socket.on('playerShoot', function () {
-    var playerRoomNumber = Object.keys(socket.rooms);
-    playerRoomNumber = playerRoomNumber[0];
-    var playersSocket = io.sockets.adapter.rooms[playerRoomNumber].sockets;
+    var playersSocket = io.sockets.adapter.rooms[myRoom].sockets;
     var enemy;
 
     Object.keys(playersSocket).forEach(function (socketId) {
@@ -193,14 +188,12 @@ function onConnect(socket) {
         enemy = playingPlayers[socketId];
     });
     //VYSTRELÍME STRELU NA SERVERY
-    playingPlayers[socket.id].fire(playerRoomNumber, socket.id, enemy);
+    playingPlayers[socket.id].fire(myRoom, socket.id, enemy);
   });
 
-  //AK HRÁČ ZOBERIE LIFECOIN NA STRANE KLIENTA
+  /////////////////////////////////////////////////////////////////AK HRÁČ ZOBERIE LIFECOIN NA STRANE KLIENTA
   socket.on('lifecoinTaken', function () {
-    var playerRoomNumber = Object.keys(socket.rooms);
-    playerRoomNumber = playerRoomNumber[0];
-    var playersSocket = io.sockets.adapter.rooms[playerRoomNumber].sockets;
+    var playersSocket = io.sockets.adapter.rooms[myRoom].sockets;
 
     //PRIDÁME MU ŽIVOT(+10)
     Object.keys(playersSocket).forEach(function (socketId) {
@@ -208,38 +201,97 @@ function onConnect(socket) {
         playingPlayers[socket.id].life += 10;
     });
     //ODOŠLEME NA STRANU KLIENTA OBOM HRÁČOM AKTUALIZOVANÝ ŽIVOT DANÉHO HRÁČA
-    io.in(playerRoomNumber).emit('playerLifeIncreased', {socketId: socket.id, playerLife: playingPlayers[socket.id].life});
+    io.in(myRoom).emit('playerLifeIncreased', {socketId: socket.id, playerLife: playingPlayers[socket.id].life});
   });
 
-  //AK NASTAL KONIEC HRY(NIEKOHO ŽIVOT DOSIAHOL NULU)
-  socket.on('gameOver', function () {
-    var playerRoomNumber = Object.keys(socket.rooms);
-    playerRoomNumber = playerRoomNumber[0];
-    
-    socket.leave(playerRoomNumber);
+  ///////////////////////////////////////////////////////////////AK NASTAL KONIEC HRY(NIEKOHO ŽIVOT DOSIAHOL NULU)
+  socket.on('destroyPlayer', function () {
+    socket.leave(myRoom);
     delete playingPlayers[socket.id];
   });
 
-  //AK SA HRÁČ ODPOJIL Z HRY, VYMAŽEME JEHO OBJEKT NA SERVERY
+  //////////////////////////////////////////////////////////ULOŽENIE SKÓRE
+  socket.on('saveScore', function () {
+    var string = fs.readFileSync('server/assets/all-scores.txt', 'utf8');
+    var newArrayHighscores = [];
+    var arrayScores = string.split('\n');
+
+    if (arrayScores.length != 1) {
+      //Kontrola(ak ich je plná tabuľka) či má väčšie skóre ako posledný v zozname
+      var lastScoreRow = arrayScores[arrayScores.length-1].split('/');
+      if ( arrayScores.length == 10 && ((lastScoreRow[1]-lastScoreRow[2]) >= (socket.win-socket.lose)) ) {
+        socket.emit('smallScore', { lowestScore: lastScoreRow[1]-lastScoreRow[2] } );
+      } else {
+        var inTable = false;
+        arrayScores.forEach(function(item) {
+          if(!inTable) {
+            row = item.split('/');
+            if ( (socket.win-socket.lose) < (row[1]-row[2]) ) {
+              newArrayHighscores.push(item);
+            } else {
+              newArrayHighscores.push(socket.player+'/'+socket.win+'/'+socket.lose);
+              newArrayHighscores.push(item);
+              inTable = true;
+            }
+          } else {
+            newArrayHighscores.push(item);
+          }
+        });
+
+        //Ak je 11 hráčov v tabuľke, vymažem posledné skóre
+        if (newArrayHighscores.length == 11) {
+          newArrayHighscores.pop();
+        }
+
+        //Vyčistí txt súbor
+        fs.truncateSync('server/assets/all-scores.txt');
+        
+        //Uloží všetky highscore aj s novým do tabuľky
+        newArrayHighscores.forEach(function(item, index) {
+          if (index != (newArrayHighscores.length-1)) {
+            item = item+'\n';
+          }
+          fs.writeFileSync('server/assets/all-scores.txt', item, {flag: 'a'});   
+        });
+        socket.emit('scoreSaved');
+        socket.win = 0;
+        socket.lose = 0;
+      } 
+    } else {
+      //ULOŽENIE PRVÉHO HIGHSCORE
+      fs.writeFile('server/assets/all-scores.txt', socket.player+'/'+socket.win+'/'+socket.lose+'\n', {flag: 'a'}, function (err) {
+        if (err) return console.log(err);
+      });
+      socket.emit('scoreSaved');
+      socket.win = 0;
+      socket.lose = 0;
+    }
+  });
+
+  //////////////////////////////////////////////////////////////ODOŠLE ZOZNAM HIGHSCORE HRÁČOV
+  socket.on('getHighscoreData', function () {
+    var string = fs.readFileSync('server/assets/all-scores.txt', 'utf8');
+    socket.emit('startHighscoreScene', string);
+  });
+
+  //////////////////////////////////////////////////////////////AK SA HRÁČ ODPOJIL Z HRY, VYMAŽEME JEHO OBJEKT NA SERVERY
   socket.on('disconnect', function () {
-    //OŠETRENIE AK: HRAL+ODPOJIL SA/VYHĽADÁVAL HRU A ODPOJIL SA
+    //OŠETRENIE AK: HRAL+ODPOJIL SA/VYHĽADÁVAL HRU+ODPOJIL SA
     if(typeof playingPlayers[socket.id] !== 'undefined') {
       Object.keys(io.sockets.adapter.rooms[myRoom].sockets).forEach(function (socketId) {
-        playersSocket = socketId;
+        enemyPlayerSocket = io.sockets.connected[socketId];
+        enemyPlayerSocket.win++;
+        enemyPlayerSocket.emit('gameEnd', { status: 'WIN' } );
       });
-      io.in(myRoom).emit('enemyHitByBullet', { socketOfShooter: playersSocket, enemyLife: 0 });
       delete playingPlayers[socket.id];
     } else if (typeof waitingPlayers !== 'undefined'){
       waitingPlayers = {};
     }
 
     io.emit('disconnect', socket.id);
-    
     console.log('-------------------------------------------------');
     console.log('User ' + socket.id + ' disconnected.');
-    console.log('POCET HRACOV ONLINE: ' + io.engine.clientsCount);
-
-    
+    console.log('POCET HRACOV ONLINE: ' + io.engine.clientsCount);    
   });
 }
 

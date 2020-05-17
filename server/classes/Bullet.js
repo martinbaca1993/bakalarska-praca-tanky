@@ -37,7 +37,7 @@ class Bullet extends Phaser.Physics.Arcade.Image {
 
     disableBullet(){
         io.in(this.roomNumber).emit('destroyBullet', { socketId: this.socket } );
-        this.destroy(); 
+        this.destroy();
     }
 
 }

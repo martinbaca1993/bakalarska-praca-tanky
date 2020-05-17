@@ -10,11 +10,11 @@ var config = {
     physics: {
         default: 'arcade',
         arcade: {
-            debug: false, 
+            debug: true, 
             gravity: { x: 0 , y: 0 }
         }
     },
-    scene: [MenuScene, WaitingScene, GameScene, GameOverScene]
+    scene: [SetNameScene, MenuScene, HighscoreScene, WaitingScene, GameScene, GameOverScene]
 }; 
 
 

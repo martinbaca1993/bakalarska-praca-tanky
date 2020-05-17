@@ -3,9 +3,8 @@ class GameScene extends Phaser.Scene {
         super('GameScene');
     }
 
-    //DÁTA(SOCKET, HRÁČI) KTORÉ PRÍDU Z PREDCHÁDZAJÚCEJ SCÉNY
+    //DÁTA(HRÁČI) KTORÉ PRÍDU Z PREDCHÁDZAJÚCEJ SCÉNY
     init(data) {
-        this.socket = data.socket;
         this.players = data.players;
     }
 
@@ -24,11 +23,12 @@ class GameScene extends Phaser.Scene {
     }
     
     create() {
+        this.playerMovementMemory = { left: false, right: false, up: false, down: false };
         this.sound.add('shot-music');
         this.gameMusic = this.sound.add('game-music');
         this.gameMusic.play();
         
-        //ZÁSOBNÁK Z KTORÉHO BUDEME VYBERAŤ A ZOBRAZOVAŤ STRELY
+        //ZÁSOBNÍK Z KTORÉHO BUDEME VYBERAŤ A ZOBRAZOVAŤ STRELY
         this.zasobnik = this.physics.add.group({
             classType: Bullet,
             runChildUpdate: true
@@ -93,7 +93,7 @@ class GameScene extends Phaser.Scene {
         var thisHelp = this;
         //VYTVORENIE HRÁČOV V HRE
         Object.keys(thisHelp.players).forEach(function (id) {
-            if (thisHelp.socket.id == id) {
+            if (game.socket.id == id) {
                 thisHelp.physics.player = new Player(thisHelp, thisHelp.players[id].x, thisHelp.players[id].y);
                 thisHelp.physics.player.angle = thisHelp.players[id].angle;
                 if (thisHelp.players[id].x < 400) 
@@ -123,9 +123,24 @@ class GameScene extends Phaser.Scene {
 
         //PRIDANIE OVLÁDANIA PRE HRÁČA(UP, DOWN, LEFT, RIGHT, SPACE)
         this.playerControl = this.input.keyboard.createCursorKeys();
+        //KONTROLA POHYBU(STLAČENIA KLÁVES) A ODOSLANIE NA SERVER
+        this.playerControl.left.on('down', function(event) { game.socket.emit('playerInputDown', { left: true }); });
+        this.playerControl.right.on('down', function(event) { game.socket.emit('playerInputDown', { right: true }); });
+        this.playerControl.up.on('down', function(event) { game.socket.emit('playerInputDown', { up: true }); });
+        this.playerControl.down.on('down', function(event) { game.socket.emit('playerInputDown', { down: true }); });
+        //KONTROLA POHYBU(PUSTENIE KLÁVES) A ODOSLANIE NA SERVER
+        this.playerControl.left.on('up', function(event) { game.socket.emit('playerInputUp', { left: true }); });
+        this.playerControl.right.on('up', function(event) { game.socket.emit('playerInputUp', { right: true }); });
+        this.playerControl.up.on('up', function(event) { game.socket.emit('playerInputUp', { up: true }); });
+        this.playerControl.down.on('up', function(event) { game.socket.emit('playerInputUp', { down: true }); });
+        //KONTROLA STRELY(STLAČENIA KLÁVESY) A ODOSLANIE NA SERVER
+        this.playerControl.space.on('down', function(event) { 
+            game.socket.emit('playerShoot');  
+            thisHelp.sound.play('shot-music');
+         });
 
         //AK SA HRÁČ/NEPRIATEĽ POHOL ALEBO ZASTAVIL
-        this.socket.on('playerMoved', function (playerData) {
+        game.socket.on('playerMoved', function (playerData) {
             var player;
             if (playerData.socketId == this.id) {
                 player = thisHelp.physics.player;
@@ -148,7 +163,7 @@ class GameScene extends Phaser.Scene {
 
 
         //AK SA PRESTAL POHYBOVAŤ HRÁČ/NEPRIATEĽ, ZASTAVÍM ANIMÁCIU
-        this.socket.on('playerStopped', function (playerData) {
+        game.socket.on('playerStopped', function (playerData) {
             if (playerData.socketId == this.id) {
                 thisHelp.physics.player.anims.pause();
             } else {
@@ -160,7 +175,7 @@ class GameScene extends Phaser.Scene {
         //ZOBRAZENIE VYSTRELENEJ STRELY HRÁČA/NEPRIATEĽA
         var bulletPlayer;
         var bulletEnemy;
-        this.socket.on('showBullet', function (bulletToShow) {
+        game.socket.on('showBullet', function (bulletToShow) {
             if (bulletToShow.socketId == this.id) {
                 if (!bulletPlayer) {
                     bulletPlayer = thisHelp.zasobnik.get();
@@ -177,7 +192,7 @@ class GameScene extends Phaser.Scene {
         });
 
         //ZNIČENIE STRELY HRÁČA/NEPRIATEĽA A VYKRESLENIE ANIMÁCIE(EXPLÓZIA) NA POZÍCIE STRELY
-        this.socket.on('destroyBullet', function (bulletOwner) {
+        game.socket.on('destroyBullet', function (bulletOwner) {
             if (bulletOwner.socketId == this.id) {
                 thisHelp.explosion = thisHelp.physics.add.sprite(bulletPlayer.x, bulletPlayer.y, 'explosion');
                 thisHelp.explosion.anims.play('sprite-explosion', false);
@@ -192,8 +207,7 @@ class GameScene extends Phaser.Scene {
         });
         
         //AK BOL HRÁČ ZASIAHNUTÝ STRELOU, ZMENÍME TEXT VÝPISU ŽIVOTA A AKTUALIZUJEME HO
-        this.socket.on('enemyHitByBullet', function (shootingInfo) {
-            console.log(shootingInfo);
+        game.socket.on('enemyHitByBullet', function (shootingInfo) {
             if (shootingInfo.socketOfShooter == this.id) {
                 thisHelp.physics.enemy.scoreText.setText('ENEMY LIFE: '+shootingInfo.enemyLife);
                 thisHelp.physics.enemy.life = shootingInfo.enemyLife;
@@ -202,9 +216,9 @@ class GameScene extends Phaser.Scene {
                 thisHelp.physics.player.life = shootingInfo.enemyLife;
             }
         });
-        
+
         //AK HRÁČ ZOBRAL LIFECOIN, ZMENÍME TEXT VÝPISU ŽIVOTA A AKTUALIZUJEME HO 
-        this.socket.on('playerLifeIncreased', function (playerInfo) {
+        game.socket.on('playerLifeIncreased', function (playerInfo) {
             if (playerInfo.socketId == this.id) {
                 thisHelp.physics.player.scoreText.setText('YOUR LIFE: '+playerInfo.playerLife);
                 thisHelp.physics.player.life = playerInfo.playerLife;
@@ -213,45 +227,29 @@ class GameScene extends Phaser.Scene {
                 thisHelp.physics.enemy.life = playerInfo.playerLife;
             }
         });
+        
+        //AK HRÁČ ZOBRAL LIFECOIN, ZMENÍME TEXT VÝPISU ŽIVOTA A AKTUALIZUJEME HO 
+        game.socket.on('gameEnd', function (endData) {
+            if (endData.status == 'WIN')
+                game.win++;
+            else 
+                game.lose++;
+                
+            thisHelp.gameMusic.stop();
+            this.emit('destroyPlayer');
+            game.socket.removeAllListeners();
+            thisHelp.scene.start('GameOverScene',{ gameStatus: endData.status });
+        });
     }
 
-
-    update() {
-        //KONTROLA POHYBU(STLAČENIA KLÁVES) A ODOSLANIE NA SERVER
-        if ( this.playerControl.left.isDown || this.playerControl.right.isDown || this.playerControl.up.isDown || this.playerControl.down.isDown ) {
-            this.socket.emit('playerInput', { left: this.playerControl.left.isDown, right: this.playerControl.right.isDown, up: this.playerControl.up.isDown, down: this.playerControl.down.isDown });
-            if (!this.wasMoving) 
-                this.wasMoving = true;  
-        } else {
-            if (this.wasMoving) {
-                this.socket.emit('playerInput', { left: this.playerControl.left.isDown, right: this.playerControl.right.isDown, up: this.playerControl.up.isDown, down: this.playerControl.down.isDown });
-                this.wasMoving = false;
-            }
-        }
-        //KONTROLA STRELY(STLAČENIA KLÁVESY) A ODOSLANIE NA SERVER
-        if (Phaser.Input.Keyboard.JustDown(this.playerControl.space)) {
-            this.socket.emit('playerShoot');  
-            this.sound.play('shot-music');
-        }
-
-        //KONTROLA ČI SA NESKONČILA HRA
-        if(this.physics.enemy.life == 0) {
-            this.gameMusic.stop();
-            this.socket.emit('gameOver');
-            this.scene.start('GameOverScene',{ gameStatus: 'WIN' });
-        }
-        if(this.physics.player.life == 0) {
-            this.gameMusic.stop();
-            this.socket.emit('gameOver');
-            this.scene.start('GameOverScene',{ gameStatus: 'LOSE' });
-        }
-    }
+    
+    update() {}
 
     //VYMAZANIE LIFECOINU PO ZOBRATÍ PLAYEROM/NEPRIATEĽOM A ODOSLANIE NA SERVER, LEN V PRIPADE PLAYERA
     disablePlayerLifecoin(player, lifecoin){
         this.physics.lifecoins.killAndHide(lifecoin);
         lifecoin.body.enable = false;
-        this.socket.emit('lifecoinTaken');
+        game.socket.emit('lifecoinTaken');
     }
     disableEnemyLifecoin(player, lifecoin){
         this.physics.lifecoins.killAndHide(lifecoin);
